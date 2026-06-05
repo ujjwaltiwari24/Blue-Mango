@@ -1,27 +1,13 @@
 "use client";
+import { Cormorant_Garamond, Sora } from "next/font/google";
 
-/**
- * BlueMango – Anonymous Confessions Feed
- * ─────────────────────────────────────────────────────────────────────────
- * FILE: app/(main)/feed/page.tsx
- *
- * Drop this file into your Next.js 15 App Router project.
- * It imports nothing custom — all sub-components are defined below in the
- * same file so you have one complete reference. Split into separate files
- * whenever you're ready.
- *
- * External deps required (already in your package.json if you use Tailwind):
- *   - tailwindcss
- *   - framer-motion      →  npm i framer-motion
- *   - lucide-react       →  npm i lucide-react
- *
- * Firebase calls are stubbed with the same function signatures you already have:
- *   createPost(text, anonymousName, mood, category)
- *   getPosts()
- *   logoutUser()
- * ─────────────────────────────────────────────────────────────────────────
- */
+const cormorant = Cormorant_Garamond({
+  subsets: ["latin"],
+});
 
+const sora = Sora({
+  subsets: ["latin"],
+});
 import React, {
   useEffect,
   useState,
@@ -68,8 +54,8 @@ import {
 import {
   createPost,
   getPosts,
+  toggleLike,
 } from "@/services/post.service";
-import { logoutUser } from "@/services/auth.service";
 
 // ──────────────────────────────────────────────────────────────────────────
 // DESIGN TOKENS  (CSS custom properties via Tailwind arbitrary values)
@@ -274,7 +260,7 @@ const TopBar: FC<TopBarProps> = ({ onLogout }) => {
           </div>
           <div>
             <p
-              className="text-[22px] font-bold leading-none tracking-tight text-white"
+              className="text-[18px] sm:text-[22px] font-bold leading-none tracking-tight text-white"
               style={{ fontFamily: FONT_DISPLAY }}
             >
               BlueMango
@@ -680,17 +666,16 @@ const LeftSidebar: FC = () => (
       <p className="text-[24px] font-bold text-white">2,419</p>
       <p className="mb-3 text-[12px] text-white/35">anonymous souls online</p>
       <div className="flex gap-1">
-        const LIVE_BARS = [
-  0.55,
-  0.82,
-  0.37,
-  0.91,
-  0.48,
-  0.74,
-  0.63,
-  0.88,
-];
-      </div>
+  {[0.55, 0.82, 0.37, 0.91, 0.48, 0.74, 0.63, 0.88].map(
+    (opacity, i) => (
+      <div
+        key={i}
+        className="h-1.5 flex-1 rounded-full bg-emerald-500"
+        style={{ opacity }}
+      />
+    )
+  )}
+</div>
     </div>
   </nav>
 );
@@ -830,15 +815,39 @@ export default function FeedPage() {
     }
   }, [text, mood, category]);
 
-  const handleLike = useCallback((id: string) => {
-    setPosts((prev) =>
-      prev.map((p) =>
-        p.id === id
-          ? { ...p, liked: !p.liked, likes: p.likes + (p.liked ? -1 : 1) }
-          : p
-      )
+  const handleLike = useCallback(
+  async (id: string) => {
+    const targetPost = posts.find(
+      (p) => p.id === id
     );
-  }, []);
+
+    if (!targetPost) return;
+
+    try {
+      await toggleLike(
+        id,
+        targetPost.liked || false
+      );
+
+      setPosts((prev) =>
+        prev.map((p) =>
+          p.id === id
+            ? {
+                ...p,
+                liked: !p.liked,
+                likes:
+                  p.likes +
+                  (p.liked ? -1 : 1),
+              }
+            : p
+        )
+      );
+    } catch (error) {
+      console.error(error);
+    }
+  },
+  [posts]
+); [];
 
   const handleSave = useCallback((id: string) => {
     setPosts((prev) =>
@@ -858,18 +867,13 @@ export default function FeedPage() {
 
   return (
     <>
-      {/* Google fonts */}
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&family=Sora:wght@300;400;500;600&display=swap');
-      `}</style>
 
       <AmbientBg />
 
       <div className="min-h-screen text-white" style={{ fontFamily: FONT_BODY }}>
         <TopBar onLogout={handleLogout} />
 
-        <div className="mx-auto max-w-7xl px-5 py-8">
-
+<div className="mx-auto max-w-7xl px-3 sm:px-5 py-6 sm:py-8">
           {/* stats row */}
           <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
             <StatPill
