@@ -207,26 +207,21 @@ const AmbientBg: FC = () => (
     <div className="absolute inset-0 bg-[#060810]" />
     {/* top-left warm glow */}
     <div
-      className="absolute -top-40 -left-40 h-[700px] w-[700px] rounded-full opacity-[0.07]"
+      className="absolute -top-40 -left-40 h-[350px] w-[350px] rounded-full opacity-[0.07]"
       style={{ background: "radial-gradient(circle, #c4a882 0%, transparent 70%)" }}
     />
     {/* mid-right cool glow */}
     <div
-      className="absolute top-1/3 -right-60 h-[600px] w-[600px] rounded-full opacity-[0.055]"
+      className="absolute top-1/3 -right-60 h-[300px] w-[300px] rounded-full opacity-[0.055]"
       style={{ background: "radial-gradient(circle, #7c6bbf 0%, transparent 70%)" }}
     />
     {/* bottom rose pulse */}
     <div
-      className="absolute -bottom-40 left-1/3 h-[500px] w-[500px] rounded-full opacity-[0.045]"
+      className="absolute -bottom-40 left-1/3 h-[250px] w-[250px] rounded-full opacity-[0.045]"
       style={{ background: "radial-gradient(circle, #b5607a 0%, transparent 70%)" }}
     />
     {/* noise grain */}
-    <svg className="absolute inset-0 h-full w-full opacity-[0.018]" xmlns="http://www.w3.org/2000/svg">
-      <filter id="noise">
-        <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="4" stitchTiles="stitch" />
-      </filter>
-      <rect width="100%" height="100%" filter="url(#noise)" />
-    </svg>
+    
   </div>
 );
 
@@ -875,7 +870,7 @@ export default function FeedPage() {
 
 <div className="mx-auto max-w-7xl px-3 sm:px-5 py-6 sm:py-8">
           {/* stats row */}
-          <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="mb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
             <StatPill
               value={String(posts.length)}
               label="Confessions shared"
