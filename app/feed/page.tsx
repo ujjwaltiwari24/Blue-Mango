@@ -267,26 +267,28 @@ function Header({
         justifyContent: "space-between", padding: "0 18px",
       }}>
         {/* Logo */}
-        <Link href="/feed" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none" }}>
-          <div style={{
-            width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-            background: "linear-gradient(135deg,#D6A86B,#C06C84)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            color: "#fff", position: "relative",
-          }}>
-            {Icon.sparkle()}
-            <span style={{
-              position: "absolute", top: -2, right: -2,
-              width: 9, height: 9, borderRadius: "50%",
-              background: "#10B981", border: "2px solid #060810",
-            }} />
-          </div>
-          <div className="bm-logo-full">
-            <p style={{ fontFamily: "Georgia,serif", fontSize: 19, fontWeight: 600, color: "#fff", lineHeight: 1, margin: 0 }}>BlueMango</p>
-            <p style={{ fontSize: 9, letterSpacing: "2.5px", textTransform: "uppercase", color: "rgba(255,255,255,0.25)", margin: 0 }}>anonymous confessions</p>
-          </div>
-          <p style={{ fontFamily: "Georgia,serif", fontSize: 19, fontWeight: 600, color: "#fff" }} className="bm-logo-short">BlueMango</p>
-        </Link>
+        <Link
+  href="/feed"
+  style={{
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    textDecoration: "none",
+  }}
+>
+<div className="flex flex-col select-none">
+  <h1 className="text-[1.8rem] font-semibold leading-[1.15] text-slate-50">
+    Blue
+    <span className="bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-500 bg-clip-text text-transparent">
+      Mango
+    </span>
+  </h1>
+
+  <span className="mt-2 pl-[2px] text-[9px] font-medium uppercase tracking-[0.22em] text-slate-500">
+    SPEAK FREELY • STAY UNKNOWN
+  </span>
+</div>
+</Link>
 
         {/* Right actions */}
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
