@@ -6,7 +6,7 @@ import {
   signOut,
   updateProfile,
 } from "firebase/auth";
-
+import { usernameToSlug } from "@/services/username.service";
 import {
   doc,
   setDoc,
@@ -36,12 +36,14 @@ export const registerUser = async (
   });
 
   await setDoc(doc(db, "users", user.uid), {
-    uid: user.uid,
-    username,
-    email,
-    createdAt: serverTimestamp(),
-    lastActive: serverTimestamp(),
-  });
+  uid: user.uid,
+  username,
+  usernameSlug: usernameToSlug(username),
+  email,
+  createdAt: serverTimestamp(),
+  lastActive: serverTimestamp(),
+  lastUsernameChange: serverTimestamp(),
+});
 
   return user;
 };
@@ -69,18 +71,24 @@ export const googleLogin = async () => {
 
   const user = result.user;
 
-  await setDoc(
-    doc(db, "users", user.uid),
-    {
-      uid: user.uid,
-      username:
-        user.displayName || "User",
-      email: user.email,
-      createdAt: serverTimestamp(),
-      lastActive: serverTimestamp(),
-    },
-    { merge: true }
-  );
+const username =
+  user.displayName || "User";
+
+await setDoc(
+  doc(db, "users", user.uid),
+  {
+    uid: user.uid,
+    username,
+    usernameSlug:
+      usernameToSlug(username),
+    email: user.email,
+    createdAt: serverTimestamp(),
+    lastActive: serverTimestamp(),
+    lastUsernameChange:
+      serverTimestamp(),
+  },
+  { merge: true }
+);
 
   return user;
 };

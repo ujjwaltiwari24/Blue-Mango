@@ -26,8 +26,7 @@ import type {
 
 /**
  * Converts a display username into a URL-safe slug.
- * e.g. "Apni Duniya" → "apni-duniya"
- * Stored alongside username in Firestore for lookup.
+ * e.g. "Ujjwal Tiwari" → "ujjwal-tiwari"
  */
 export function usernameToSlug(username: string): string {
   return username
@@ -72,68 +71,66 @@ export function validateMessage(message: string): ValidationResult {
 
 // ─── User lookup ───────────────────────────────────────────────────────────
 
+function _mapUser(d: { id: string; data: () => Record<string, unknown> }): BlueMangUser {
+  const data = d.data();
+  return {
+    uid: d.id,
+    username: (data.username as string) ?? "",
+    usernameSlug:
+      (data.usernameSlug as string) ??
+      usernameToSlug((data.username as string) ?? ""),
+    displayName:
+      (data.displayName as string) ?? (data.name as string) ?? null,
+    photoURL: (data.photoURL as string) ?? null,
+    email: (data.email as string) ?? null,
+    createdAt:
+      data.createdAt instanceof Timestamp
+        ? data.createdAt.toDate()
+        : null,
+  };
+}
+
 /**
  * Look up a user by their username slug from the URL.
- * Strategy (most to least specific):
- *  1. Exact match on `usernameSlug` field
- *  2. Exact match on `username` field (case-sensitive, for legacy users)
- *  3. Case-insensitive match on `username` field (lowercase fallback)
+ * Four-tier fallback for backward compatibility.
  */
 export async function getUserByUsername(
   usernameParam: string
 ): Promise<BlueMangUser | null> {
-  // The URL param may be a slug ("apni-duniya") or a raw encoded username
   const decoded = decodeURIComponent(usernameParam).trim();
   const slug = usernameToSlug(decoded);
 
-  // ── 1. Try slug field (new users) ──────────────────────────────────────
+  // 1. Try usernameSlug field (new users)
   let snap = await getDocs(
     query(collection(db, "users"), where("usernameSlug", "==", slug))
   );
-  if (!snap.empty) return _mapUser(snap.docs[0]);
+  if (!snap.empty) return _mapUser(snap.docs[0] as Parameters<typeof _mapUser>[0]);
 
-  // ── 2. Try exact username match (legacy: username without spaces) ──────
+  // 2. Exact username match (legacy)
   snap = await getDocs(
     query(collection(db, "users"), where("username", "==", decoded))
   );
-  if (!snap.empty) return _mapUser(snap.docs[0]);
+  if (!snap.empty) return _mapUser(snap.docs[0] as Parameters<typeof _mapUser>[0]);
 
-  // ── 3. Try lowercase username (legacy fallback) ────────────────────────
+  // 3. Lowercase username match (legacy fallback)
   snap = await getDocs(
     query(
       collection(db, "users"),
       where("username", "==", decoded.toLowerCase())
     )
   );
-  if (!snap.empty) return _mapUser(snap.docs[0]);
+  if (!snap.empty) return _mapUser(snap.docs[0] as Parameters<typeof _mapUser>[0]);
 
-  // ── 4. Try slug as lowercase username (spaces-to-nothing approach) ─────
-  //    Covers users whose username was stored without spaces e.g. "apniduniya"
+  // 4. No-spaces slug (covers "ujjwaltiwari" → slug "ujjwaltiwari")
   const noSpace = decoded.replace(/\s+/g, "").toLowerCase();
   if (noSpace !== decoded.toLowerCase()) {
     snap = await getDocs(
       query(collection(db, "users"), where("username", "==", noSpace))
     );
-    if (!snap.empty) return _mapUser(snap.docs[0]);
+    if (!snap.empty) return _mapUser(snap.docs[0] as Parameters<typeof _mapUser>[0]);
   }
 
   return null;
-}
-
-function _mapUser(d: ReturnType<typeof Object.create>): BlueMangUser {
-  const data = d.data();
-  return {
-    uid: d.id,
-    username: data.username ?? "",
-    usernameSlug: data.usernameSlug ?? usernameToSlug(data.username ?? ""),
-    displayName: data.displayName ?? data.name ?? null,
-    photoURL: data.photoURL ?? null,
-    email: data.email ?? null,
-    createdAt:
-      data.createdAt instanceof Timestamp
-        ? data.createdAt.toDate()
-        : null,
-  };
 }
 
 export async function getUserByUid(uid: string): Promise<BlueMangUser | null> {
@@ -142,12 +139,14 @@ export async function getUserByUid(uid: string): Promise<BlueMangUser | null> {
   const data = snap.data();
   return {
     uid: snap.id,
-    username: data.username ?? "",
+    username: (data.username as string) ?? "",
     usernameSlug:
-      data.usernameSlug ?? usernameToSlug(data.username ?? ""),
-    displayName: data.displayName ?? data.name ?? null,
-    photoURL: data.photoURL ?? null,
-    email: data.email ?? null,
+      (data.usernameSlug as string) ??
+      usernameToSlug((data.username as string) ?? ""),
+    displayName:
+      (data.displayName as string) ?? (data.name as string) ?? null,
+    photoURL: (data.photoURL as string) ?? null,
+    email: (data.email as string) ?? null,
     createdAt:
       data.createdAt instanceof Timestamp
         ? data.createdAt.toDate()
@@ -181,32 +180,53 @@ export async function sendAnonymousMessage(
 
 // ─── Inbox queries ─────────────────────────────────────────────────────────
 
+/**
+ * FIXED: Previously used a compound query:
+ *   where(receiverUid) + where(hidden==false) + orderBy(createdAt)
+ * This requires a Firestore composite index which may not exist yet.
+ *
+ * Solution: Query ONLY by receiverUid (single-field index, always works),
+ * then filter hidden==false and sort client-side. This works immediately
+ * without any index configuration.
+ */
 export async function getAnonymousMessages(
   receiverUid: string
 ): Promise<AnonymousMessage[]> {
+  // Simple single-field query — no composite index needed
   const q = query(
     collection(db, "anonymousMessages"),
-    where("receiverUid", "==", receiverUid),
-    where("hidden", "==", false),
-    orderBy("createdAt", "desc")
+    where("receiverUid", "==", receiverUid)
   );
+
   const snap = await getDocs(q);
-  return snap.docs.map((d) => {
-    const data = d.data();
-    return {
-      id: d.id,
-      receiverUid: data.receiverUid,
-      receiverUsername: data.receiverUsername,
-      message: data.message,
-      createdAt:
-        data.createdAt instanceof Timestamp
-          ? data.createdAt.toDate()
-          : null,
-      replied: data.replied ?? false,
-      hidden: data.hidden ?? false,
-      reported: data.reported ?? false,
-    };
-  });
+
+  const messages: AnonymousMessage[] = snap.docs
+    .map((d) => {
+      const data = d.data();
+      return {
+        id: d.id,
+        receiverUid: data.receiverUid as string,
+        receiverUsername: data.receiverUsername as string,
+        message: data.message as string,
+        createdAt:
+          data.createdAt instanceof Timestamp
+            ? data.createdAt.toDate()
+            : null,
+        replied: (data.replied as boolean) ?? false,
+        hidden: (data.hidden as boolean) ?? false,
+        reported: (data.reported as boolean) ?? false,
+      };
+    })
+    // Filter hidden messages client-side
+    .filter((m) => !m.hidden)
+    // Sort newest first client-side
+    .sort((a, b) => {
+      const aTime = a.createdAt?.getTime() ?? 0;
+      const bTime = b.createdAt?.getTime() ?? 0;
+      return bTime - aTime;
+    });
+
+  return messages;
 }
 
 // ─── Message actions ───────────────────────────────────────────────────────

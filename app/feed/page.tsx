@@ -1211,23 +1211,31 @@ export default function FeedPage() {
     if (!text.trim()) return;
     setLoading(true);
     try {
-      await createPost(text, randomAnon(), mood, category);
+      await createPost(
+  text,
+  currentUser?.username || "anonymous",
+  mood,
+  category
+);
       const fresh = await getPosts();
       if (Array.isArray(fresh) && fresh.length) {
         setPosts(fresh as Post[]);
       } else {
-        setPosts((prev) => [{
-          id: `local-${Date.now()}`,
-          text,
-          anonymousName: randomAnon(),
-          mood,
-          category,
-          likes: 0,
-          comments: 0,
-          createdAt: new Date(),
-          liked: false,
-          saved: false,
-        }, ...prev]);
+        setPosts((prev) => [
+  {
+    id: `local-${Date.now()}`,
+    text,
+    anonymousName: currentUser?.username || "anonymous",
+    mood,
+    category,
+    likes: 0,
+    comments: 0,
+    createdAt: new Date(),
+    liked: false,
+    saved: false,
+  },
+  ...prev,
+]);
       }
       setText("");
       showToast("✦ Confession posted anonymously");
