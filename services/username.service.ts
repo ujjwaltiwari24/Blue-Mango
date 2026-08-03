@@ -11,18 +11,28 @@ import {
 } from "firebase/firestore";
 
 import { db } from "@/lib/firebase/firebase";
+import { generateRandomUsername } from "@/services/random-username";
 
-export function usernameToSlug(username: string) {
+export function usernameToSlug(username: string): string {
   return username
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9 ]/g, "")
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "");
+    .replace(/^-|-$/g, "")
+    .slice(0, 25);
 }
 
-export async function migrateUserIfNeeded(uid: string) {
+/*
+|--------------------------------------------------------------------------
+| Migrate Existing Users
+|--------------------------------------------------------------------------
+*/
+
+export async function migrateUserIfNeeded(
+  uid: string
+) {
   const ref = doc(db, "users", uid);
 
   const snap = await getDoc(ref);
@@ -33,55 +43,81 @@ export async function migrateUserIfNeeded(uid: string) {
 
   const updates: Record<string, any> = {};
 
-  if (!data.usernameSlug && data.username) {
-    updates.usernameSlug = usernameToSlug(
-      data.username
-    );
+  /*
+   * Old users don't have usernameSlug.
+   * Give them a random anonymous username.
+   */
+
+  if (!data.usernameSlug) {
+    updates.usernameSlug =
+      generateRandomUsername();
   }
 
-  if (!data.lastUsernameChange) {
-    updates.lastUsernameChange =
-      data.createdAt || serverTimestamp();
+  /*
+   * Allow first username change.
+   */
+
+  if (
+    data.lastUsernameChange === undefined
+  ) {
+    updates.lastUsernameChange = null;
   }
 
-  if (Object.keys(updates).length > 0) {
+  if (
+    Object.keys(updates).length > 0
+  ) {
     await updateDoc(ref, updates);
   }
 }
 
+/*
+|--------------------------------------------------------------------------
+| Username Availability
+|--------------------------------------------------------------------------
+*/
+
 export async function isUsernameAvailable(
   username: string,
   currentUid?: string
-) {
-  const slug = usernameToSlug(username);
+): Promise<boolean> {
+
+  const slug =
+    usernameToSlug(username);
 
   const q = query(
     collection(db, "users"),
-    where("usernameSlug", "==", slug)
+    where(
+      "usernameSlug",
+      "==",
+      slug
+    )
   );
 
-  const snapshot = await getDocs(q);
+  const snap =
+    await getDocs(q);
 
-  if (snapshot.empty) {
+  if (snap.empty) {
     return true;
   }
 
-  const existingUser =
-    snapshot.docs[0];
-
-  if (
-    currentUid &&
-    existingUser.id === currentUid
-  ) {
-    return true;
-  }
-
-  return false;
+  return snap.docs.every(
+    (doc) =>
+      doc.id === currentUid
+  );
 }
+/*
+|--------------------------------------------------------------------------
+| Username Cooldown
+|--------------------------------------------------------------------------
+*/
 
 export async function canChangeUsername(
   uid: string
-) {
+): Promise<{
+  allowed: boolean;
+  daysRemaining: number;
+}> {
+
   const ref = doc(db, "users", uid);
 
   const snap = await getDoc(ref);
@@ -95,7 +131,14 @@ export async function canChangeUsername(
 
   const data = snap.data();
 
-  if (!data.lastUsernameChange) {
+  /*
+   * User has never changed username.
+   */
+
+  if (
+    data.lastUsernameChange === null ||
+    data.lastUsernameChange === undefined
+  ) {
     return {
       allowed: true,
       daysRemaining: 0,
@@ -141,24 +184,77 @@ export async function canChangeUsername(
   };
 }
 
+/*
+|--------------------------------------------------------------------------
+| Reserved Usernames
+|--------------------------------------------------------------------------
+*/
+
+const RESERVED_USERNAMES = [
+  "admin",
+  "support",
+  "login",
+  "logout",
+  "register",
+  "feed",
+  "profile",
+  "settings",
+  "notifications",
+  "anonymous-chat",
+  "home",
+  "about",
+  "privacy",
+  "terms",
+  "help",
+  "contact",
+  "api",
+  "root",
+  "system",
+];
+/*
+|--------------------------------------------------------------------------
+| Update Username
+|--------------------------------------------------------------------------
+*/
+
 export async function updateUsername(
   uid: string,
   username: string
-) {
+): Promise<string> {
+
   username = username.trim();
 
+  if (username.length < 3) {
+    throw new Error(
+      "Username must contain at least 3 characters."
+    );
+  }
+
+  if (username.length > 25) {
+    throw new Error(
+      "Username cannot exceed 25 characters."
+    );
+  }
+
+  const slug = usernameToSlug(username);
+
+  if (slug.length < 3) {
+    throw new Error(
+      "Please choose a valid username."
+    );
+  }
+
   if (
-    username.length < 3 ||
-    username.length > 25
+    RESERVED_USERNAMES.includes(slug)
   ) {
     throw new Error(
-      "Username must be between 3 and 25 characters."
+      "This username is reserved."
     );
   }
 
   const available =
     await isUsernameAvailable(
-      username,
+      slug,
       uid
     );
 
@@ -177,13 +273,15 @@ export async function updateUsername(
     );
   }
 
-  const slug =
-    usernameToSlug(username);
+  /*
+   * IMPORTANT
+   * Keep display name untouched.
+   * Only update usernameSlug.
+   */
 
   await updateDoc(
     doc(db, "users", uid),
     {
-      username,
       usernameSlug: slug,
       lastUsernameChange:
         serverTimestamp(),
